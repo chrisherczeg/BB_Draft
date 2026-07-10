@@ -1,0 +1,43 @@
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  AZURE_WEBAPP_NAME: bb-draft-app-654ae7
+  NODE_VERSION: '20'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install server dependencies
+        run: npm --prefix server ci
+
+      - name: Install client dependencies
+        run: npm --prefix client ci
+
+      - name: Build client
+        run: npm --prefix client run build
+
+      - name: Prune dev dependencies from server
+        run: npm --prefix server prune --omit=dev
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: .
