@@ -9,6 +9,7 @@ export default defineConfig({
     proxy: {
       '/socket.io': { target: 'http://localhost:3001', ws: true },
       '/assets': { target: 'http://localhost:3001' },
+      '/config': { target: 'http://localhost:3001' },
     },
   },
 });

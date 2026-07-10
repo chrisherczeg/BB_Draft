@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
-import socket from './socket';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import socketPromise from './socket';
 import Home from './screens/Home.jsx';
 import Lobby from './screens/Lobby.jsx';
 import DraftBoard from './screens/DraftBoard.jsx';
@@ -19,14 +19,18 @@ export default function App() {
   const [me, setMe] = useState(loadSaved); // { id, token, name, code }
   const [state, setState] = useState(null); // serialized session
   const [error, setError] = useState('');
-  const [connected, setConnected] = useState(socket.connected);
+  const [connected, setConnected] = useState(false);
+  const socketRef = useRef(null);
 
   useEffect(() => {
+    let socket;
+    let cleanup = () => {};
+
     function onConnect() {
       setConnected(true);
       // Attempt to rejoin an in-progress session after a reload/reconnect.
       const saved = loadSaved();
-      if (saved?.code && saved?.token) {
+      if (saved?.code && saved?.token && socket) {
         socket.emit('resume', { code: saved.code, token: saved.token }, (res) => {
           if (!res?.ok) {
             localStorage.removeItem(STORAGE_KEY);
@@ -48,44 +52,50 @@ export default function App() {
       setState(s);
     }
 
-    socket.on('connect', onConnect);
-    socket.on('disconnect', onDisconnect);
-    socket.on('joined', onJoined);
-    socket.on('state', onState);
-    if (socket.connected) onConnect();
+    socketPromise.then((s) => {
+      socket = s;
+      socketRef.current = s;
+      s.on('connect', onConnect);
+      s.on('disconnect', onDisconnect);
+      s.on('joined', onJoined);
+      s.on('state', onState);
+      setConnected(s.connected);
+      if (s.connected) onConnect();
+      cleanup = () => {
+        s.off('connect', onConnect);
+        s.off('disconnect', onDisconnect);
+        s.off('joined', onJoined);
+        s.off('state', onState);
+      };
+    });
 
-    return () => {
-      socket.off('connect', onConnect);
-      socket.off('disconnect', onDisconnect);
-      socket.off('joined', onJoined);
-      socket.off('state', onState);
-    };
+    return () => cleanup();
   }, []);
 
   const create = useCallback((name) => {
     setError('');
-    socket.emit('createSession', { name }, (res) => {
+    socketRef.current?.emit('createSession', { name }, (res) => {
       if (!res?.ok) setError(res?.error || 'Could not create session.');
     });
   }, []);
 
   const join = useCallback((code, name) => {
     setError('');
-    socket.emit('joinSession', { code, name }, (res) => {
+    socketRef.current?.emit('joinSession', { code, name }, (res) => {
       if (!res?.ok) setError(res?.error || 'Could not join session.');
     });
   }, []);
 
   const startDraft = useCallback(() => {
     setError('');
-    socket.emit('startDraft', {}, (res) => {
+    socketRef.current?.emit('startDraft', {}, (res) => {
       if (!res?.ok) setError(res?.error || 'Could not start draft.');
     });
   }, []);
 
   const pickCard = useCallback((position) => {
     setError('');
-    socket.emit('pickCard', { position }, (res) => {
+    socketRef.current?.emit('pickCard', { position }, (res) => {
       if (!res?.ok) setError(res?.error || 'Could not pick that card.');
     });
   }, []);
