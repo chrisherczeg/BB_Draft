@@ -20,18 +20,33 @@ const io = new Server(server, {
 
 // Optionally offload connections to Azure Web PubSub for Socket.IO (free tier: 20 conns).
 // Enabled only when a connection string is provided, so local dev needs no Azure resource.
+const WPS_HUB = process.env.WEBPUBSUB_HUB || 'bbdraft';
+let webPubSubEndpoint = null;
 if (process.env.WEBPUBSUB_CONNECTION_STRING) {
   try {
     const { useAzureSocketIO } = require('@azure/web-pubsub-socket.io');
     useAzureSocketIO(io, {
-      hub: process.env.WEBPUBSUB_HUB || 'bbdraft',
+      hub: WPS_HUB,
       connectionString: process.env.WEBPUBSUB_CONNECTION_STRING,
     });
+    const match = /Endpoint=([^;]+)/i.exec(process.env.WEBPUBSUB_CONNECTION_STRING);
+    if (match) webPubSubEndpoint = match[1].replace(/\/+$/, '');
     console.log('Azure Web PubSub for Socket.IO enabled.');
   } catch (err) {
     console.warn('Failed to enable Azure Web PubSub, falling back to direct Socket.IO:', err.message);
+    webPubSubEndpoint = null;
   }
 }
+
+// Tells the client where to open its Socket.IO connection.
+// With Web PubSub, clients connect to the service endpoint, not this server.
+app.get('/config', (req, res) => {
+  if (webPubSubEndpoint) {
+    res.json({ webPubSub: true, endpoint: webPubSubEndpoint, path: `/clients/socketio/hubs/${WPS_HUB}` });
+  } else {
+    res.json({ webPubSub: false });
+  }
+});
 
 const store = new SessionStore();
 
