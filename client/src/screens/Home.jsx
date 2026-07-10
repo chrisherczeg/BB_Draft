@@ -10,7 +10,7 @@ export default function Home({ onCreate, onJoin }) {
   return (
     <div className="home">
       <h1 className="home__title">Big Brother Draft</h1>
-      <p className="home__subtitle">Live snake draft · 17 houseguests · 60s per pick</p>
+      <p className="home__subtitle">Live snake draft · 17 houseguests · pick at your own pace</p>
 
       <label className="field">
         <span>Your name</span>
