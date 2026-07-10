@@ -65,6 +65,10 @@ export default function Home({ onCreate, onJoin }) {
               Back
             </button>
           </div>
+          <p className="hint">
+            Coming back after closing your browser? Enter the same name and code to
+            rejoin your spot — even mid-draft.
+          </p>
         </div>
       )}
     </div>
