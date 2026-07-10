@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 // Plays assets/bb_draft_sound.mp3 every time the active drafter switches.
 // Missing file = silent no-op.
@@ -20,18 +20,7 @@ function useTurnSound(currentPickerId) {
   }, [currentPickerId]);
 }
 
-function useCountdown(deadline) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 250);
-    return () => clearInterval(t);
-  }, []);
-  if (!deadline) return null;
-  return Math.max(0, Math.ceil((deadline - now) / 1000));
-}
-
 export default function DraftBoard({ state, me, onPick }) {
-  const seconds = useCountdown(state.turnDeadline);
   useTurnSound(state.currentPickerId);
   const nameById = useMemo(
     () => Object.fromEntries(state.participants.map((p) => [p.id, p.name])),
@@ -40,6 +29,7 @@ export default function DraftBoard({ state, me, onPick }) {
 
   const isMyTurn = state.currentPickerId === me.id;
   const pickerName = nameById[state.currentPickerId] || '—';
+  const pickerConnected = state.participants.find((p) => p.id === state.currentPickerId)?.connected;
 
   // Group revealed picks by owner, following the draft order.
   const rostersByOwner = useMemo(() => {
@@ -66,9 +56,14 @@ export default function DraftBoard({ state, me, onPick }) {
             {isMyTurn ? 'Your pick!' : `${pickerName}'s pick`}
           </h2>
         </div>
-        <div className={`timer ${seconds !== null && seconds <= 10 ? 'timer--low' : ''}`}>
-          <span className="timer__num">{seconds ?? '—'}</span>
-          <span className="timer__label">sec</span>
+        <div className="draft__whose">
+          {isMyTurn ? (
+            <span className="pill pill--go">You're up — take your time</span>
+          ) : (
+            <span className="pill">
+              Waiting on {pickerName}{pickerConnected ? '' : ' (away)'}
+            </span>
+          )}
         </div>
       </div>
 
@@ -100,7 +95,7 @@ export default function DraftBoard({ state, me, onPick }) {
                       />
                       <span className="card__name">{card.contestant.name}</span>
                       <span className="card__owner">
-                        {nameById[card.ownerId]}{card.auto ? ' (auto)' : ''}
+                        {nameById[card.ownerId]}
                       </span>
                     </>
                   ) : (

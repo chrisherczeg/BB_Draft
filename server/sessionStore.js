@@ -1,7 +1,6 @@
 const roster = require('./data/roster');
 
 const MAX_PARTICIPANTS = 16;
-const TURN_SECONDS = Number(process.env.TURN_SECONDS) || 60;
 const TOTAL_PICKS = roster.length; // 17
 
 function randomId(len = 12) {
@@ -22,7 +21,8 @@ function shuffle(arr) {
 
 /**
  * In-memory session store + snake draft engine.
- * The server is the source of truth for all state and the turn timer.
+ * The draft is asynchronous: each drafter picks on their turn whenever they want,
+ * with no time limit. The server is the source of truth for all state.
  */
 class SessionStore {
   constructor() {
@@ -57,8 +57,6 @@ class SessionStore {
       draftOrder: [],
       cards: [],
       pickCount: 0,
-      turnDeadline: null,
-      _timer: null,
     };
     this.sessions.set(code, session);
     return { session, participant };
@@ -67,11 +65,23 @@ class SessionStore {
   joinSession(code, name) {
     const session = this.sessions.get(code);
     if (!session) return { error: 'Session not found.' };
-    if (session.status !== 'lobby') return { error: 'This draft has already started.' };
+    const clean = String(name || '').trim();
+
+    // Rejoin: if a drafter with this exact name (case-insensitive) already exists,
+    // re-attach to that slot. This works mid-draft too, so anyone who closes their
+    // browser can get back in with just their name + the session code. No password.
+    const existing = session.participants.find(
+      (p) => p.name.toLowerCase() === clean.toLowerCase()
+    );
+    if (existing) return { session, participant: existing };
+
+    if (session.status !== 'lobby') {
+      return { error: 'This draft has already started. To rejoin, enter the exact name you used.' };
+    }
     if (session.participants.length >= MAX_PARTICIPANTS) {
       return { error: 'This session is full (16 max).' };
     }
-    const participant = this._makeParticipant(name);
+    const participant = this._makeParticipant(clean);
     session.participants.push(participant);
     return { session, participant };
   }
@@ -115,7 +125,6 @@ class SessionStore {
 
     session.status = 'drafting';
     session.pickCount = 0;
-    this._beginTurn(session);
     return { session };
   }
 
@@ -129,32 +138,6 @@ class SessionStore {
     return session.draftOrder[index];
   }
 
-  _beginTurn(session) {
-    this._clearTimer(session);
-    session.turnDeadline = Date.now() + TURN_SECONDS * 1000;
-    const pickerId = this.currentPickerId(session);
-    session._timer = setTimeout(() => {
-      this._autoPick(session, pickerId);
-    }, TURN_SECONDS * 1000);
-  }
-
-  _clearTimer(session) {
-    if (session._timer) {
-      clearTimeout(session._timer);
-      session._timer = null;
-    }
-  }
-
-  _autoPick(session, pickerId) {
-    if (session.status !== 'drafting') return;
-    if (this.currentPickerId(session) !== pickerId) return; // turn already advanced
-    const remaining = session.cards.filter((c) => !c.revealed);
-    if (remaining.length === 0) return;
-    const card = remaining[Math.floor(Math.random() * remaining.length)];
-    this._applyPick(session, pickerId, card, true);
-    this.broadcast(session);
-  }
-
   pickCard(code, participantId, position) {
     const session = this.sessions.get(code);
     if (!session) return { error: 'Session not found.' };
@@ -163,21 +146,16 @@ class SessionStore {
     const card = session.cards.find((c) => c.position === position);
     if (!card) return { error: 'Invalid card.' };
     if (card.revealed) return { error: 'That card is already taken.' };
-    this._applyPick(session, participantId, card, false);
+    this._applyPick(session, participantId, card);
     return { session };
   }
 
-  _applyPick(session, participantId, card, auto) {
+  _applyPick(session, participantId, card) {
     card.revealed = true;
     card.ownerId = participantId;
-    card.auto = auto;
     session.pickCount += 1;
     if (session.pickCount >= TOTAL_PICKS) {
       session.status = 'complete';
-      session.turnDeadline = null;
-      this._clearTimer(session);
-    } else {
-      this._beginTurn(session);
     }
   }
 
@@ -189,10 +167,8 @@ class SessionStore {
       status: session.status,
       leaderId: session.leaderId,
       maxParticipants: MAX_PARTICIPANTS,
-      turnSeconds: TURN_SECONDS,
       totalPicks: TOTAL_PICKS,
       pickCount: session.pickCount,
-      turnDeadline: session.turnDeadline,
       currentPickerId: session.status === 'drafting' ? this.currentPickerId(session) : null,
       draftOrder: session.draftOrder,
       participants: session.participants.map((p) => ({ id: p.id, name: p.name, connected: p.connected })),
@@ -200,11 +176,10 @@ class SessionStore {
         position: c.position,
         revealed: c.revealed,
         ownerId: c.ownerId,
-        auto: c.auto || false,
         contestant: c.revealed ? contestantById[c.contestantId] : null,
       })),
     };
   }
 }
 
-module.exports = { SessionStore, MAX_PARTICIPANTS, TURN_SECONDS, TOTAL_PICKS };
+module.exports = { SessionStore, MAX_PARTICIPANTS, TOTAL_PICKS };

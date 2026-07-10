@@ -147,6 +147,19 @@ body {
 .timer__label { font-size: 12px; color: var(--muted); }
 .timer--low .timer__num { color: var(--red); }
 
+.draft__whose { text-align: right; max-width: 260px; }
+.pill {
+  display: inline-block;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.pill--go { background: var(--accent); color: #1a1204; border-color: transparent; }
+
 .draft__body { display: grid; grid-template-columns: 1fr 320px; gap: 16px; margin-top: 16px; }
 @media (max-width: 900px) { .draft__body { grid-template-columns: 1fr; } }
 
