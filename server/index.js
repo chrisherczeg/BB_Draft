@@ -62,9 +62,11 @@ store.setBroadcaster(broadcast);
 io.on('connection', (socket) => {
   let ctx = null; // { code, participantId }
 
-  function attachTo(session, participant) {
+  async function attachTo(session, participant) {
     ctx = { code: session.code, participantId: participant.id };
-    socket.join(roomOf(session.code));
+    // With Azure Web PubSub, socket.join() is async (a service call). Await it
+    // before broadcasting, or the client misses room events (e.g. 'state').
+    await socket.join(roomOf(session.code));
     participant.connected = true;
     socket.emit('joined', {
       code: session.code,
@@ -73,23 +75,23 @@ io.on('connection', (socket) => {
     broadcast(session);
   }
 
-  socket.on('createSession', ({ name }, cb = () => {}) => {
+  socket.on('createSession', async ({ name }, cb = () => {}) => {
     const { session, participant } = store.createSession(name);
-    attachTo(session, participant);
+    await attachTo(session, participant);
     cb({ ok: true, code: session.code });
   });
 
-  socket.on('joinSession', ({ code, name }, cb = () => {}) => {
+  socket.on('joinSession', async ({ code, name }, cb = () => {}) => {
     const result = store.joinSession(String(code || '').toUpperCase(), name);
     if (result.error) return cb({ ok: false, error: result.error });
-    attachTo(result.session, result.participant);
+    await attachTo(result.session, result.participant);
     cb({ ok: true, code: result.session.code });
   });
 
-  socket.on('resume', ({ code, token }, cb = () => {}) => {
+  socket.on('resume', async ({ code, token }, cb = () => {}) => {
     const found = store.findByToken(String(code || '').toUpperCase(), token);
     if (!found) return cb({ ok: false, error: 'Could not rejoin session.' });
-    attachTo(found.session, found.participant);
+    await attachTo(found.session, found.participant);
     cb({ ok: true, code: found.session.code });
   });
 
