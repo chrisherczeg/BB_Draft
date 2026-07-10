@@ -12,8 +12,14 @@ async function build() {
   }
 
   if (cfg.webPubSub && cfg.endpoint) {
-    return io(cfg.endpoint, { path: cfg.path, autoConnect: true });
+    console.log('[bbdraft] connecting to Web PubSub', cfg.endpoint, cfg.path);
+    const s = io(cfg.endpoint, { path: cfg.path, autoConnect: true });
+    s.on('connect', () => console.log('[bbdraft] socket connect', s.id));
+    s.on('connect_error', (e) => console.log('[bbdraft] connect_error', e.message));
+    s.on('disconnect', (r) => console.log('[bbdraft] disconnect', r));
+    return s;
   }
+  console.log('[bbdraft] connecting same-origin');
   return io({ autoConnect: true });
 }
 

@@ -44,11 +44,13 @@ export default function App() {
       setConnected(false);
     }
     function onJoined({ code, participant }) {
+      console.log('[bbdraft] onJoined', code);
       const next = { ...participant, code };
       setMe(next);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     }
     function onState(s) {
+      console.log('[bbdraft] onState', s.status);
       setState(s);
     }
 
@@ -74,7 +76,9 @@ export default function App() {
 
   const create = useCallback((name) => {
     setError('');
+    console.log('[bbdraft] emit createSession, socket?', !!socketRef.current, socketRef.current?.connected);
     socketRef.current?.emit('createSession', { name }, (res) => {
+      console.log('[bbdraft] createSession ack', res);
       if (!res?.ok) setError(res?.error || 'Could not create session.');
     });
   }, []);
