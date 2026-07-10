@@ -1,23 +1,23 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 
-// Drop an audio file at assets/turn-change.mp3 (or .wav) to enable the turn sound.
-// It plays whenever it becomes another player's turn. Missing file = silent no-op.
-function useTurnSound(currentPickerId, myId) {
+// Plays assets/bb_draft_sound.mp3 every time the active drafter switches.
+// Missing file = silent no-op.
+function useTurnSound(currentPickerId) {
   const audioRef = useRef(null);
   const prevPickerRef = useRef(null);
   if (!audioRef.current && typeof Audio !== 'undefined') {
-    audioRef.current = new Audio('/assets/turn-change.mp3');
+    audioRef.current = new Audio('/assets/bb_draft_sound.mp3');
     audioRef.current.preload = 'auto';
   }
   useEffect(() => {
     const picker = currentPickerId;
     const changed = picker && picker !== prevPickerRef.current;
-    if (changed && picker !== myId && audioRef.current) {
+    if (changed && audioRef.current) {
       audioRef.current.currentTime = 0;
       audioRef.current.play().catch(() => {});
     }
     prevPickerRef.current = picker;
-  }, [currentPickerId, myId]);
+  }, [currentPickerId]);
 }
 
 function useCountdown(deadline) {
@@ -32,7 +32,7 @@ function useCountdown(deadline) {
 
 export default function DraftBoard({ state, me, onPick }) {
   const seconds = useCountdown(state.turnDeadline);
-  useTurnSound(state.currentPickerId, me.id);
+  useTurnSound(state.currentPickerId);
   const nameById = useMemo(
     () => Object.fromEntries(state.participants.map((p) => [p.id, p.name])),
     [state.participants]
